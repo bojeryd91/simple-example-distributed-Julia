@@ -1,21 +1,21 @@
-using Base.Threads, Distributed, BenchmarkTools, TickTock,
-        Printf
+using Distributed, TickTock, Printf
 
 const IN_SLURM = "SLURM_JOBID" in keys(ENV)
 
 # load packages
-using Distributed
 IN_SLURM && using ClusterManagers
 
 # Here we create our parallel julia processes
 if IN_SLURM
     pids = addprocs_slurm(parse(Int, ENV["SLURM_NTASKS"]))
-    print("\n")
+    print("\nIn SLURM")
+    println(pids)
 else
     pids = addprocs()
+    println("Not SLURM")
 end
 
-@everywhere using Optim, SharedArrays
+@everywhere using Optim, SharedArrays, Base.Threads
 @everywhere function a_task(a, b)
     f(x) = a*x[1] + b*x[2] + (a+b)*x[1]^2 + 2.0*x[2]^2
     res = optimize(f, [a, b])
@@ -48,7 +48,7 @@ end
 function w_distributed(A_L, B_L)
     A = range(0.0, 20.0, length=A_L)
     B = range(0.0, 50.0, length=B_L)
-    R = SharedArray{Float64}(A_L, B_L)
+    R = ones(A_L, B_L) #SharedArray{Float64}(A_L, B_L)
     @sync @distributed for (i_a, i_b) in [(i_a, i_b)
                     for i_a in eachindex(A), i_b in eachindex(B)]
         R[i_a, i_b] = a_task(A[i_a], B[i_b])
@@ -59,7 +59,7 @@ end
 function w_combined(A_L, B_L)
     A = range(0.0, 20.0, length=A_L)
     B = range(0.0, 50.0, length=B_L)
-    R = SharedArray{Float64}(A_L, B_L)
+    R = ones(A_L, B_L) #SharedArray{Float64}(A_L, B_L)
     @sync @distributed for i_a in eachindex(A)
         @threads for i_b in eachindex(B)
             R[i_a, i_b] = a_task(A[i_a], B[i_b])
@@ -70,7 +70,7 @@ end
 no_PL(2, 2)
 w_threads(2, 2)
 w_distributed(2, 2)
-w_combined(2, 2)
+#w_combined(2, 2)
 
 funcs = [no_PL, w_threads, w_distributed, w_combined]
 ticks = zeros(length(funcs))
