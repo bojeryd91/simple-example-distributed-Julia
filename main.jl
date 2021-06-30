@@ -1,4 +1,4 @@
-using Distributed, TickTock, Printf, SharedArrays
+using Distributed, TickTock, Printf
 
 const IN_SLURM = "SLURM_JOBID" in keys(ENV)
 
@@ -8,14 +8,14 @@ IN_SLURM && using ClusterManagers
 # Here we create our parallel julia processes
 if IN_SLURM
     pids = addprocs_slurm(parse(Int, ENV["SLURM_NTASKS"]))
-    print("\nIn SLURM")
+    print("\nIn SLURM\n")
     println(pids)
 else
     pids = addprocs()
     println("Not SLURM")
 end
 
-@everywhere using Optim, SharedArrays, Base.Threads
+@everywhere using Optim, Base.Threads
 @everywhere function a_task(a, b)
     f(x) = a*x[1] + b*x[2] + (a+b)*x[1]^2 + 2.0*x[2]^2
     res = optimize(f, [a, b])
@@ -49,6 +49,7 @@ function w_distributed(A_L, B_L)
     A = range(0.0, 20.0, length=A_L)
     B = range(0.0, 50.0, length=B_L)
     R = ones(A_L, B_L) #SharedArray{Float64}(A_L, B_L)
+
     @sync @distributed for (i_a, i_b) in [(i_a, i_b)
                     for i_a in eachindex(A), i_b in eachindex(B)]
         R[i_a, i_b] = a_task(A[i_a], B[i_b])
